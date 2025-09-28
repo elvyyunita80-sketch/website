@@ -1,64 +1,76 @@
 <?php
 
-namespace Config;
+declare(strict_types=1);
 
-use CodeIgniter\Config\BaseConfig;
-use CodeIgniter\Format\JSONFormatter;
-use CodeIgniter\Format\XMLFormatter;
+/**
+ * This file is part of CodeIgniter 4 framework.
+ *
+ * (c) CodeIgniter Foundation <admin@codeigniter.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
+ */
 
-class Format extends BaseConfig
+namespace CodeIgniter\Format;
+
+use CodeIgniter\Format\Exceptions\FormatException;
+use Config\Format as FormatConfig;
+
+/**
+ * The Format class is a convenient place to create Formatters.
+ *
+ * @see \CodeIgniter\Format\FormatTest
+ */
+class Format
 {
     /**
-     * --------------------------------------------------------------------------
-     * Available Response Formats
-     * --------------------------------------------------------------------------
+     * Configuration instance
      *
-     * When you perform content negotiation with the request, these are the
-     * available formats that your application supports. This is currently
-     * only used with the API\ResponseTrait. A valid Formatter must exist
-     * for the specified format.
-     *
-     * These formats are only checked when the data passed to the respond()
-     * method is an array.
-     *
-     * @var list<string>
+     * @var FormatConfig
      */
-    public array $supportedResponseFormats = [
-        'application/json',
-        'application/xml', // machine-readable XML
-        'text/xml', // human-readable XML
-    ];
+    protected $config;
 
     /**
-     * --------------------------------------------------------------------------
-     * Formatters
-     * --------------------------------------------------------------------------
-     *
-     * Lists the class to use to format responses with of a particular type.
-     * For each mime type, list the class that should be used. Formatters
-     * can be retrieved through the getFormatter() method.
-     *
-     * @var array<string, string>
+     * Constructor.
      */
-    public array $formatters = [
-        'application/json' => JSONFormatter::class,
-        'application/xml'  => XMLFormatter::class,
-        'text/xml'         => XMLFormatter::class,
-    ];
+    public function __construct(FormatConfig $config)
+    {
+        $this->config = $config;
+    }
 
     /**
-     * --------------------------------------------------------------------------
-     * Formatters Options
-     * --------------------------------------------------------------------------
+     * Returns the current configuration instance.
      *
-     * Additional Options to adjust default formatters behaviour.
-     * For each mime type, list the additional options that should be used.
-     *
-     * @var array<string, int>
+     * @return FormatConfig
      */
-    public array $formatterOptions = [
-        'application/json' => JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-        'application/xml'  => 0,
-        'text/xml'         => 0,
-    ];
+    public function getConfig()
+    {
+        return $this->config;
+    }
+
+    /**
+     * A Factory method to return the appropriate formatter for the given mime type.
+     *
+     * @throws FormatException
+     */
+    public function getFormatter(string $mime): FormatterInterface
+    {
+        if (! array_key_exists($mime, $this->config->formatters)) {
+            throw FormatException::forInvalidMime($mime);
+        }
+
+        $className = $this->config->formatters[$mime];
+
+        if (! class_exists($className)) {
+            throw FormatException::forInvalidFormatter($className);
+        }
+
+        $class = new $className();
+
+        if (! $class instanceof FormatterInterface) {
+            throw FormatException::forInvalidFormatter($className);
+        }
+
+        return $class;
+    }
 }

@@ -1,105 +1,123 @@
 <?php
 
-namespace Config;
-
-use CodeIgniter\Config\BaseConfig;
+declare(strict_types=1);
 
 /**
- * Cross-Origin Resource Sharing (CORS) Configuration
+ * This file is part of CodeIgniter 4 framework.
  *
- * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/CORS
+ * (c) CodeIgniter Foundation <admin@codeigniter.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
  */
-class Cors extends BaseConfig
+
+namespace CodeIgniter\Filters;
+
+use CodeIgniter\HTTP\Cors as CorsService;
+use CodeIgniter\HTTP\IncomingRequest;
+use CodeIgniter\HTTP\RequestInterface;
+use CodeIgniter\HTTP\ResponseInterface;
+
+/**
+ * @see \CodeIgniter\Filters\CorsTest
+ */
+class Cors implements FilterInterface
 {
+    private ?CorsService $cors = null;
+
     /**
-     * The default CORS configuration.
+     * @testTag $config is used for testing purposes only.
      *
-     * @var array{
-     *      allowedOrigins: list<string>,
-     *      allowedOriginsPatterns: list<string>,
-     *      supportsCredentials: bool,
-     *      allowedHeaders: list<string>,
-     *      exposedHeaders: list<string>,
-     *      allowedMethods: list<string>,
-     *      maxAge: int,
-     *  }
+     * @param array{
+     *      allowedOrigins?: list<string>,
+     *      allowedOriginsPatterns?: list<string>,
+     *      supportsCredentials?: bool,
+     *      allowedHeaders?: list<string>,
+     *      exposedHeaders?: list<string>,
+     *      allowedMethods?: list<string>,
+     *      maxAge?: int,
+     *  } $config
      */
-    public array $default = [
-        /**
-         * Origins for the `Access-Control-Allow-Origin` header.
-         *
-         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
-         *
-         * E.g.:
-         *   - ['http://localhost:8080']
-         *   - ['https://www.example.com']
-         */
-        'allowedOrigins' => [],
+    public function __construct(array $config = [])
+    {
+        if ($config !== []) {
+            $this->cors = new CorsService($config);
+        }
+    }
 
-        /**
-         * Origin regex patterns for the `Access-Control-Allow-Origin` header.
-         *
-         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Origin
-         *
-         * NOTE: A pattern specified here is part of a regular expression. It will
-         *       be actually `#\A<pattern>\z#`.
-         *
-         * E.g.:
-         *   - ['https://\w+\.example\.com']
-         */
-        'allowedOriginsPatterns' => [],
+    /**
+     * @param list<string>|null $arguments
+     *
+     * @return ResponseInterface|null
+     */
+    public function before(RequestInterface $request, $arguments = null)
+    {
+        if (! $request instanceof IncomingRequest) {
+            return null;
+        }
 
-        /**
-         * Weather to send the `Access-Control-Allow-Credentials` header.
-         *
-         * The Access-Control-Allow-Credentials response header tells browsers whether
-         * the server allows cross-origin HTTP requests to include credentials.
-         *
-         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Credentials
-         */
-        'supportsCredentials' => false,
+        $this->createCorsService($arguments);
 
-        /**
-         * Set headers to allow.
-         *
-         * The Access-Control-Allow-Headers response header is used in response to
-         * a preflight request which includes the Access-Control-Request-Headers to
-         * indicate which HTTP headers can be used during the actual request.
-         *
-         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Headers
-         */
-        'allowedHeaders' => [],
+        /** @var ResponseInterface $response */
+        $response = service('response');
 
-        /**
-         * Set headers to expose.
-         *
-         * The Access-Control-Expose-Headers response header allows a server to
-         * indicate which response headers should be made available to scripts running
-         * in the browser, in response to a cross-origin request.
-         *
-         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Expose-Headers
-         */
-        'exposedHeaders' => [],
+        if ($this->cors->isPreflightRequest($request)) {
+            $response = $this->cors->handlePreflightRequest($request, $response);
 
-        /**
-         * Set methods to allow.
-         *
-         * The Access-Control-Allow-Methods response header specifies one or more
-         * methods allowed when accessing a resource in response to a preflight
-         * request.
-         *
-         * E.g.:
-         *   - ['GET', 'POST', 'PUT', 'DELETE']
-         *
-         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Allow-Methods
-         */
-        'allowedMethods' => [],
+            // Always adds `Vary: Access-Control-Request-Method` header for cacheability.
+            // If there is an intermediate cache server such as a CDN, if a plain
+            // OPTIONS request is sent, it may be cached. But valid preflight requests
+            // have this header, so it will be cached separately.
+            $response->appendHeader('Vary', 'Access-Control-Request-Method');
 
-        /**
-         * Set how many seconds the results of a preflight request can be cached.
-         *
-         * @see https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Access-Control-Max-Age
-         */
-        'maxAge' => 7200,
-    ];
+            return $response;
+        }
+
+        if ($request->is('OPTIONS')) {
+            // Always adds `Vary: Access-Control-Request-Method` header for cacheability.
+            // If there is an intermediate cache server such as a CDN, if a plain
+            // OPTIONS request is sent, it may be cached. But valid preflight requests
+            // have this header, so it will be cached separately.
+            $response->appendHeader('Vary', 'Access-Control-Request-Method');
+        }
+
+        $this->cors->addResponseHeaders($request, $response);
+
+        return null;
+    }
+
+    /**
+     * @param list<string>|null $arguments
+     */
+    private function createCorsService(?array $arguments): void
+    {
+        $this->cors ??= ($arguments === null) ? CorsService::factory()
+            : CorsService::factory($arguments[0]);
+    }
+
+    /**
+     * @param list<string>|null $arguments
+     */
+    public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
+    {
+        if (! $request instanceof IncomingRequest) {
+            return null;
+        }
+
+        $this->createCorsService($arguments);
+
+        if ($this->cors->hasResponseHeaders($request, $response)) {
+            return null;
+        }
+
+        // Always adds `Vary: Access-Control-Request-Method` header for cacheability.
+        // If there is an intermediate cache server such as a CDN, if a plain
+        // OPTIONS request is sent, it may be cached. But valid preflight requests
+        // have this header, so it will be cached separately.
+        if ($request->is('OPTIONS')) {
+            $response->appendHeader('Vary', 'Access-Control-Request-Method');
+        }
+
+        return $this->cors->addResponseHeaders($request, $response);
+    }
 }
