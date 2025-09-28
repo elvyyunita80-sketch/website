@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title><?= esc($title) ?> - KWT Sales</title>
+  <!-- AdminLTE CSS CDN -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/css/adminlte.min.css" />
+  <!-- Font Awesome CDN -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+    <!--  Data Tables  -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/2.3.2/css/dataTables.bootstrap5.css" />
+    <link rel="stylesheet" href="https://cdn.datatables.net/buttons/3.2.4/css/buttons.dataTables.min.css" />
+
+    <!--Chart.JS-->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body class="hold-transition sidebar-mini">
+<div class="wrapper">
+
+  <!-- Navbar -->
+  <nav class="main-header navbar navbar-expand navbar-white navbar-light">
+    <!-- Left navbar links -->
+    <ul class="navbar-nav">
+      <li class="nav-item">
+        <a class="nav-link" data-widget="pushmenu" href="#" role="button"><i class="fas fa-bars"></i></a>
+      </li>
+      <li class="nav-item d-none d-sm-inline-block">
+        <a href="/dashboard" class="nav-link">Home</a>
+      </li>
+    </ul>
+
+    <!-- Right navbar links -->
+    <ul class="navbar-nav ml-auto">
+      <!-- User Info -->
+      <li class="nav-item dropdown">
+        <a class="nav-link" data-toggle="dropdown" href="#">
+          <i class="far fa-user"></i> <?= session('nama') ?>
+        </a>
+        <div class="dropdown-menu dropdown-menu-lg dropdown-menu-right">
+          <a href="#" class="dropdown-item">Profile</a>
+          <div class="dropdown-divider"></div>
+          <a href="/logout" class="dropdown-item">Logout</a>
+        </div>
+      </li>
+    </ul>
+  </nav>
+  <!-- /.navbar -->
+
+  <!-- Main Sidebar Container -->
+  <aside class="main-sidebar sidebar-dark-primary elevation-4 pt-4">
+    <!-- Sidebar -->
+    <div class="sidebar ">
+      <div class="logo d-flex align-items-center mb-3">
+        <a href="/" class="d-flex align-items-center text-decoration-none text-bold">
+          <i class="fas fa-home me-2"></i>
+          <span>KWT SALES</span>
+        </a>
+      </div>
+
+      <!-- Sidebar Menu -->
+      <nav class="mt-2">
+        <ul class="nav nav-pills nav-sidebar flex-column" data-widget="treeview" role="menu" data-accordion="false">
+            <?php foreach ($sidebarMenu as $item): ?>
+                <?php
+                if ($item['isAdmin'] && session()->get('level') !== 'admin') {
+                    continue;
+                }
+                ?>
+                <li class="nav-item">
+                    <a href="<?= base_url($item['url']) ?>" onclick="event.preventDefault(); window.location.href='<?= base_url($item['url']) ?>';" class="nav-link <?= ($title === $item['title']) ? 'active' : '' ?>">
+                        <i class="nav-icon <?= esc($item['icon']) ?>"></i>
+                        <p><?= esc($item['title']) ?></p>
+                    </a>
+                </li>
+            <?php endforeach; ?>
+        </ul>
+      </nav>
+      <!-- /.sidebar-menu -->
+    </div>
+    <!-- /.sidebar -->
+  </aside>
+
+  <!-- Content Wrapper. Contains page content -->
+  <div class="content-wrapper" style="min-height: 600px;">
+    <!-- Content Header (Page header) -->
+    <section class="content-header">
+      <div class="container-fluid">
+        <h1><?= esc($title) ?></h1>
+      </div>
+    </section>
+
+    <!-- Main content -->
+    <section class="content">
+      <div class="container-fluid" id="main-content">
+        <?= $this->renderSection('content') ?>
+      </div>
+    </section>
+  </div>
+  <!-- /.content-wrapper -->
+
+  <!-- Main Footer -->
+  <footer class="main-footer">
+    <div class="float-right d-none d-sm-inline">
+      KWT Sales System
+    </div>
+    <strong>&copy; 2024 KWT Sales.</strong> All rights reserved.
+  </footer>
+</div>
+
+<!-- jQuery CDN -->
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<!-- AdminLTE JS CDN -->
+<script src="https://cdn.jsdelivr.net/npm/admin-lte@3.2/dist/js/adminlte.min.js"></script>
+<!--Data Tables-->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/5.3.3/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.datatables.net/2.3.2/js/dataTables.js"></script>
+<script src="https://cdn.datatables.net/2.3.2/js/dataTables.bootstrap5.js"></script>
+<!-- Buttons extension -->
+<script src="https://cdn.datatables.net/buttons/3.2.4/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.datatables.net/buttons/3.2.4/js/buttons.html5.min.js"></script>
+
+<!-- PDF and Excel export dependencies -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+
+<?= $this->renderSection('script') ?>
+
+<script>
+$(document).ready(function() {
+  // Intercept sidebar menu clicks (exclude logout and external links)
+  $('.nav-sidebar a.nav-link').on('click', function(e) {
+    var url = $(this).attr('href');
+    
+    // Skip AJAX for certain links
+    if (url === '#' || 
+        !url || 
+        url.includes('/logout') || 
+        url.includes('javascript:') ||
+        $(this).hasClass('external-link') ||
+        $(this).attr('target') === '_blank') {
+      return; // Allow normal navigation
+    }
+    
+    e.preventDefault();
+
+    // Load content via AJAX
+    $.ajax({
+      url: url,
+      method: 'GET',
+      dataType: 'html',
+      success: function(data) {
+        // Parse the returned HTML to extract the content section
+        var newContent = $('<div>').html(data).find('#main-content').html();
+        if (newContent) {
+          $('#main-content').html(newContent);
+
+          // Update active menu item
+          $('.nav-sidebar a.nav-link').removeClass('active');
+          $('.nav-sidebar a.nav-link[href="' + url + '"]').addClass('active');
+
+          // Update page title
+          var newTitle = $('<div>').html(data).find('h1').first().text();
+          if (newTitle) {
+            // Remove existing title suffix if present to avoid duplication
+            var cleanTitle = newTitle.replace(/ - KWT Sales$/, '');
+            // Also remove duplicate title if present in h1 text
+            cleanTitle = cleanTitle.replace(/^(.*) - \1$/, '$1');
+            document.title = cleanTitle + ' - KWT Sales';
+            $('.content-header h1').text(cleanTitle);
+          }
+
+          // Update browser history
+          history.pushState(null, newTitle, url);
+        }
+      },
+      error: function() {
+        alert('Gagal memuat halaman.');
+      }
+    });
+  });
+
+  // Handle browser back/forward buttons
+  window.onpopstate = function() {
+    location.reload();
+  };
+});
+</script>
+
+</body>
+</html>
