@@ -11,214 +11,159 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\Commands\Utilities;
+namespace CodeIgniter\Debug\Toolbar\Collectors;
 
-use CodeIgniter\CLI\BaseCommand;
-use CodeIgniter\CLI\CLI;
-use CodeIgniter\Commands\Utilities\Routes\AutoRouteCollector;
-use CodeIgniter\Commands\Utilities\Routes\AutoRouterImproved\AutoRouteCollector as AutoRouteCollectorImproved;
-use CodeIgniter\Commands\Utilities\Routes\FilterCollector;
-use CodeIgniter\Commands\Utilities\Routes\SampleURIGenerator;
 use CodeIgniter\Router\DefinedRouteCollector;
-use CodeIgniter\Router\Router;
-use Config\Feature;
-use Config\Routing;
+use ReflectionException;
+use ReflectionFunction;
+use ReflectionMethod;
 
 /**
- * Lists all the routes. This will include any Routes files
- * that can be discovered, and will include routes that are not defined
- * in routes files, but are instead discovered through auto-routing.
+ * Routes collector
  */
-class Routes extends BaseCommand
+class Routes extends BaseCollector
 {
     /**
-     * The group the command is lumped under
-     * when listing commands.
+     * Whether this collector has data that can
+     * be displayed in the Timeline.
+     *
+     * @var bool
+     */
+    protected $hasTimeline = false;
+
+    /**
+     * Whether this collector needs to display
+     * content in a tab or not.
+     *
+     * @var bool
+     */
+    protected $hasTabContent = true;
+
+    /**
+     * The 'title' of this Collector.
+     * Used to name things in the toolbar HTML.
      *
      * @var string
      */
-    protected $group = 'CodeIgniter';
+    protected $title = 'Routes';
 
     /**
-     * The Command's name
+     * Returns the data of this collector to be formatted in the toolbar
      *
-     * @var string
-     */
-    protected $name = 'routes';
-
-    /**
-     * the Command's short description
+     * @return array{
+     *      matchedRoute: array<array{
+     *          directory: string,
+     *          controller: string,
+     *          method: string,
+     *          paramCount: int,
+     *          truePCount: int,
+     *          params: list<array{
+     *              name: string,
+     *              value: mixed
+     *          }>
+     *      }>,
+     *      routes: list<array{
+     *          method: string,
+     *          route: string,
+     *          handler: string
+     *      }>
+     * }
      *
-     * @var string
+     * @throws ReflectionException
      */
-    protected $description = 'Displays all routes.';
-
-    /**
-     * the Command's usage
-     *
-     * @var string
-     */
-    protected $usage = 'routes';
-
-    /**
-     * the Command's Arguments
-     *
-     * @var array<string, string>
-     */
-    protected $arguments = [];
-
-    /**
-     * the Command's Options
-     *
-     * @var array<string, string>
-     */
-    protected $options = [
-        '-h'     => 'Sort by Handler.',
-        '--host' => 'Specify hostname in request URI.',
-    ];
-
-    /**
-     * Displays the help for the spark cli script itself.
-     */
-    public function run(array $params)
+    public function display(): array
     {
-        $sortByHandler = array_key_exists('h', $params);
-        $host          = $params['host'] ?? null;
+        $rawRoutes = service('routes', true);
+        $router    = service('router', null, null, true);
 
-        // Set HTTP_HOST
-        if ($host !== null) {
-            $request              = service('request');
-            $_SERVER              = $request->getServer();
-            $_SERVER['HTTP_HOST'] = $host;
-            $request->setGlobal('server', $_SERVER);
+        // Get our parameters
+        // Closure routes
+        if (is_callable($router->controllerName())) {
+            $method = new ReflectionFunction($router->controllerName());
+        } else {
+            try {
+                $method = new ReflectionMethod($router->controllerName(), $router->methodName());
+            } catch (ReflectionException) {
+                try {
+                    // If we're here, the method doesn't exist
+                    // and is likely calculated in _remap.
+                    $method = new ReflectionMethod($router->controllerName(), '_remap');
+                } catch (ReflectionException) {
+                    // If we're here, page cache is returned. The router is not executed.
+                    return [
+                        'matchedRoute' => [],
+                        'routes'       => [],
+                    ];
+                }
+            }
         }
 
-        $collection = service('routes')->loadRoutes();
+        $rawParams = $method->getParameters();
 
-        // Reset HTTP_HOST
-        if ($host !== null) {
-            unset($_SERVER['HTTP_HOST']);
-        }
+        $params = [];
 
-        $methods = Router::HTTP_METHODS;
-
-        $tbody           = [];
-        $uriGenerator    = new SampleURIGenerator();
-        $filterCollector = new FilterCollector();
-
-        $definedRouteCollector = new DefinedRouteCollector($collection);
-
-        foreach ($definedRouteCollector->collect() as $route) {
-            $sampleUri = $uriGenerator->get($route['route']);
-            $filters   = $filterCollector->get($route['method'], $sampleUri);
-
-            $routeName = ($route['route'] === $route['name']) ? '»' : $route['name'];
-
-            $tbody[] = [
-                strtoupper($route['method']),
-                $route['route'],
-                $routeName,
-                $route['handler'],
-                implode(' ', array_map(class_basename(...), $filters['before'])),
-                implode(' ', array_map(class_basename(...), $filters['after'])),
+        foreach ($rawParams as $key => $param) {
+            $params[] = [
+                'name'  => '$' . $param->getName() . ' = ',
+                'value' => $router->params()[$key] ??
+                    ' <empty> | default: '
+                    . var_export(
+                        $param->isDefaultValueAvailable() ? $param->getDefaultValue() : null,
+                        true,
+                    ),
             ];
         }
 
-        if ($collection->shouldAutoRoute()) {
-            $autoRoutesImproved = config(Feature::class)->autoRoutesImproved ?? false;
-
-            if ($autoRoutesImproved) {
-                $autoRouteCollector = new AutoRouteCollectorImproved(
-                    $collection->getDefaultNamespace(),
-                    $collection->getDefaultController(),
-                    $collection->getDefaultMethod(),
-                    $methods,
-                    $collection->getRegisteredControllers('*'),
-                );
-
-                $autoRoutes = $autoRouteCollector->get();
-
-                // Check for Module Routes.
-                $routingConfig = config(Routing::class);
-
-                if ($routingConfig instanceof Routing) {
-                    foreach ($routingConfig->moduleRoutes as $uri => $namespace) {
-                        $autoRouteCollector = new AutoRouteCollectorImproved(
-                            $namespace,
-                            $collection->getDefaultController(),
-                            $collection->getDefaultMethod(),
-                            $methods,
-                            $collection->getRegisteredControllers('*'),
-                            $uri,
-                        );
-
-                        $autoRoutes = [...$autoRoutes, ...$autoRouteCollector->get()];
-                    }
-                }
-            } else {
-                $autoRouteCollector = new AutoRouteCollector(
-                    $collection->getDefaultNamespace(),
-                    $collection->getDefaultController(),
-                    $collection->getDefaultMethod(),
-                );
-
-                $autoRoutes = $autoRouteCollector->get();
-
-                foreach ($autoRoutes as &$routes) {
-                    // There is no `AUTO` method, but it is intentional not to get route filters.
-                    $filters = $filterCollector->get('AUTO', $uriGenerator->get($routes[1]));
-
-                    $routes[] = implode(' ', array_map(class_basename(...), $filters['before']));
-                    $routes[] = implode(' ', array_map(class_basename(...), $filters['after']));
-                }
-            }
-
-            $tbody = [...$tbody, ...$autoRoutes];
-        }
-
-        $thead = [
-            'Method',
-            'Route',
-            'Name',
-            $sortByHandler ? 'Handler ↓' : 'Handler',
-            'Before Filters',
-            'After Filters',
+        $matchedRoute = [
+            [
+                'directory'  => $router->directory(),
+                'controller' => $router->controllerName(),
+                'method'     => $router->methodName(),
+                'paramCount' => count($router->params()),
+                'truePCount' => count($params),
+                'params'     => $params,
+            ],
         ];
 
-        // Sort by Handler.
-        if ($sortByHandler) {
-            usort($tbody, static fn ($handler1, $handler2): int => strcmp($handler1[3], $handler2[3]));
+        // Defined Routes
+        $routes = [];
+
+        $definedRouteCollector = new DefinedRouteCollector($rawRoutes);
+
+        foreach ($definedRouteCollector->collect() as $route) {
+            // filter for strings, as callbacks aren't displayable
+            if ($route['handler'] !== '(Closure)') {
+                $routes[] = [
+                    'method'  => strtoupper($route['method']),
+                    'route'   => $route['route'],
+                    'handler' => $route['handler'],
+                ];
+            }
         }
 
-        if ($host !== null) {
-            CLI::write('Host: ' . $host);
-        }
-
-        CLI::table($tbody, $thead);
-
-        $this->showRequiredFilters();
+        return [
+            'matchedRoute' => $matchedRoute,
+            'routes'       => $routes,
+        ];
     }
 
-    private function showRequiredFilters(): void
+    /**
+     * Returns a count of all the routes in the system.
+     */
+    public function getBadgeValue(): int
     {
-        $filterCollector = new FilterCollector();
+        $rawRoutes = service('routes', true);
 
-        $required = $filterCollector->getRequiredFilters();
+        return count($rawRoutes->getRoutes());
+    }
 
-        $filters = [];
-
-        foreach ($required['before'] as $filter) {
-            $filters[] = CLI::color($filter, 'yellow');
-        }
-
-        CLI::write('Required Before Filters: ' . implode(', ', $filters));
-
-        $filters = [];
-
-        foreach ($required['after'] as $filter) {
-            $filters[] = CLI::color($filter, 'yellow');
-        }
-
-        CLI::write(' Required After Filters: ' . implode(', ', $filters));
+    /**
+     * Display the icon.
+     *
+     * Icon from https://icons8.com - 1em package
+     */
+    public function icon(): string
+    {
+        return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAFDSURBVEhL7ZRNSsNQFIUjVXSiOFEcuQIHDpzpxC0IGYeE/BEInbWlCHEDLsSiuANdhKDjgm6ggtSJ+l25ldrmmTwIgtgDh/t37r1J+16cX0dRFMtpmu5pWAkrvYjjOB7AETzStBFW+inxu3KUJMmhludQpoflS1zXban4LYqiO224h6VLTHr8Z+z8EpIHFF9gG78nDVmW7UgTHKjsCyY98QP+pcq+g8Ku2s8G8X3f3/I8b038WZTp+bO38zxfFd+I6YY6sNUvFlSDk9CRhiAI1jX1I9Cfw7GG1UB8LAuwbU0ZwQnbRDeEN5qqBxZMLtE1ti9LtbREnMIuOXnyIf5rGIb7Wq8HmlZgwYBH7ORTcKH5E4mpjeGt9fBZcHE2GCQ3Vt7oTNPNg+FXLHnSsHkw/FR+Gg2bB8Ptzrst/v6C/wrH+QB+duli6MYJdQAAAABJRU5ErkJggg==';
     }
 }
