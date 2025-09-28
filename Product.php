@@ -4,9 +4,9 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class Kontak extends Model
+class Product extends Model
 {
-    protected $table            = 'kontak';
+    protected $table            = 'produk';
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
     protected $returnType       = 'array';
@@ -43,4 +43,13 @@ class Kontak extends Model
     protected $afterFind      = [];
     protected $beforeDelete   = [];
     protected $afterDelete    = [];
+
+    public function getTotalSalesProduct()
+    {
+        return $this->select("produk.*, COALESCE(SUM(CASE WHEN pemesanan.status != 'dibatalkan' THEN pemesanan.jumlah ELSE 0 END), 0) as total_terjual")
+            ->join('pemesanan', 'produk.id = pemesanan.produk', 'left')
+            ->groupBy('produk.id')
+            ->findAll();
+    }
+
 }

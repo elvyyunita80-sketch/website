@@ -4,15 +4,15 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
-class Kontak extends Model
+class User extends Model
 {
-    protected $table            = 'kontak';
+    protected $table            = 'users';
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
     protected $returnType       = 'array';
     protected $useSoftDeletes   = false;
     protected $protectFields    = false;
-    protected $allowedFields    = [];
+    protected $allowedFields    = ['nama', 'username', 'password', 'alamat', 'level', 'email', 'ktp_photo', 'reset_token', 'reset_token_expires'];
 
     protected bool $allowEmptyInserts = false;
     protected bool $updateOnlyChanged = true;

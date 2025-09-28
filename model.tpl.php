@@ -1,17 +1,20 @@
-<?php
+<@php
 
-namespace App\Models;
+namespace {namespace};
 
 use CodeIgniter\Model;
 
-class Kontak extends Model
+class {class} extends Model
 {
-    protected $table            = 'kontak';
+<?php if (is_string($dbGroup)): ?>
+    protected $DBGroup          = '{dbGroup}';
+<?php endif; ?>
+    protected $table            = '{table}';
     protected $primaryKey       = 'id';
     protected $useAutoIncrement = true;
-    protected $returnType       = 'array';
+    protected $returnType       = {return};
     protected $useSoftDeletes   = false;
-    protected $protectFields    = false;
+    protected $protectFields    = true;
     protected $allowedFields    = [];
 
     protected bool $allowEmptyInserts = false;
