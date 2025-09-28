@@ -1,8 +1,17 @@
 <?php
 
-namespace Config;
+declare(strict_types=1);
 
-use CodeIgniter\Config\Publisher as BasePublisher;
+/**
+ * This file is part of CodeIgniter 4 framework.
+ *
+ * (c) CodeIgniter Foundation <admin@codeigniter.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
+ */
+
+namespace CodeIgniter\Config;
 
 /**
  * Publisher Configuration
@@ -10,7 +19,7 @@ use CodeIgniter\Config\Publisher as BasePublisher;
  * Defines basic security restrictions for the Publisher class
  * to prevent abuse by injecting malicious files into a project.
  */
-class Publisher extends BasePublisher
+class Publisher extends BaseConfig
 {
     /**
      * A list of allowed destinations with a (pseudo-)regex
@@ -23,6 +32,13 @@ class Publisher extends BasePublisher
      */
     public $restrictions = [
         ROOTPATH => '*',
-        FCPATH   => '#\.(s?css|js|map|html?|xml|json|webmanifest|ttf|eot|woff2?|gif|jpe?g|tiff?|png|webp|bmp|ico|svg)$#i',
+        FCPATH   => '#\.(?css|js|map|htm?|xml|json|webmanifest|tff|eot|woff?|gif|jpe?g|tiff?|png|webp|bmp|ico|svg)$#i',
     ];
+
+    /**
+     * Disables Registrars to prevent modules from altering the restrictions.
+     */
+    final protected function registerProperties(): void
+    {
+    }
 }

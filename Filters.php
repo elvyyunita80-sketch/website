@@ -1,12 +1,18 @@
 <?php
 
-namespace Config;
+declare(strict_types=1);
 
-use App\Filters\AdminFilter;
-use App\Filters\AuthFilter;
-use App\Filters\GuestFilter;
-use App\Filters\UserFilter;
-use CodeIgniter\Config\Filters as BaseFilters;
+/**
+ * This file is part of CodeIgniter 4 framework.
+ *
+ * (c) CodeIgniter Foundation <admin@codeigniter.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
+ */
+
+namespace CodeIgniter\Config;
+
 use CodeIgniter\Filters\Cors;
 use CodeIgniter\Filters\CSRF;
 use CodeIgniter\Filters\DebugToolbar;
@@ -17,7 +23,10 @@ use CodeIgniter\Filters\PageCache;
 use CodeIgniter\Filters\PerformanceMetrics;
 use CodeIgniter\Filters\SecureHeaders;
 
-class Filters extends BaseFilters
+/**
+ * Filters configuration
+ */
+class Filters extends BaseConfig
 {
     /**
      * Configures aliases for Filter classes to
@@ -38,10 +47,6 @@ class Filters extends BaseFilters
         'forcehttps'    => ForceHTTPS::class,
         'pagecache'     => PageCache::class,
         'performance'   => PerformanceMetrics::class,
-        'auth'          => AuthFilter::class,
-        'guest'         => GuestFilter::class,
-        'admin'         => AdminFilter::class,
-        'user'          => UserFilter::class,
     ];
 
     /**

@@ -1,5 +1,7 @@
 <?php
 
+declare(strict_types=1);
+
 /**
  * This file is part of CodeIgniter 4 framework.
  *
@@ -9,14 +11,12 @@
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace Config;
-
-use CodeIgniter\Config\Routing as BaseRouting;
+namespace CodeIgniter\Config;
 
 /**
  * Routing configuration
  */
-class Routing extends BaseRouting
+class Routing extends BaseConfig
 {
     /**
      * For Defined Routes.
@@ -136,5 +136,5 @@ class Routing extends BaseRouting
      *
      * Default: false
      */
-    public bool $translateUriToCamelCase = true;
+    public bool $translateUriToCamelCase = false;
 }

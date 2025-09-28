@@ -1,72 +1,224 @@
 <?php
 
-use CodeIgniter\Router\RouteCollection;
+declare(strict_types=1);
 
 /**
- * @var RouteCollection $routes
+ * This file is part of CodeIgniter 4 framework.
+ *
+ * (c) CodeIgniter Foundation <admin@codeigniter.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
  */
-$routes->get('/', 'Home::index');
 
-$routes->get('/produk-public', 'ProdukPublic::index');
-$routes->get('/produk-public/cari', 'ProdukPublic::cari');
+namespace CodeIgniter\Commands\Utilities;
 
-$routes->group('', ['filter' => 'user'], function ($routes) {
-    $routes->get('/pemesanan', 'Pemesanan::index');
-    $routes->post('/pemesanan/submit', 'Pemesanan::submitOrder');
-    $routes->get('/riwayat-pemesanan', 'RiwayatPemesanan::index');
-    $routes->get('/riwayat-pemesanan/detail/(:num)', 'RiwayatPemesanan::detail/$1');
-    $routes->post('/riwayat-pemesanan/batalkan/(:num)', 'RiwayatPemesanan::batalkan/$1');
-    
-    $routes->get('/payment/confirm/(:num)', 'PaymentController::confirmPayment/$1');
-    $routes->post('/payment/submit', 'PaymentController::submitPayment');
+use CodeIgniter\CLI\BaseCommand;
+use CodeIgniter\CLI\CLI;
+use CodeIgniter\Commands\Utilities\Routes\AutoRouteCollector;
+use CodeIgniter\Commands\Utilities\Routes\AutoRouterImproved\AutoRouteCollector as AutoRouteCollectorImproved;
+use CodeIgniter\Commands\Utilities\Routes\FilterCollector;
+use CodeIgniter\Commands\Utilities\Routes\SampleURIGenerator;
+use CodeIgniter\Router\DefinedRouteCollector;
+use CodeIgniter\Router\Router;
+use Config\Feature;
+use Config\Routing;
 
-    $routes->get('/debug/session', 'Pemesanan::debugSession');
-});
+/**
+ * Lists all the routes. This will include any Routes files
+ * that can be discovered, and will include routes that are not defined
+ * in routes files, but are instead discovered through auto-routing.
+ */
+class Routes extends BaseCommand
+{
+    /**
+     * The group the command is lumped under
+     * when listing commands.
+     *
+     * @var string
+     */
+    protected $group = 'CodeIgniter';
 
-$routes->group('', ['filter' => 'guest'], function ($routes) {
-    $routes->get('/login', 'Auth::login');
-    $routes->post('login', 'Auth::postLogin');
-    $routes->get('/register', 'Auth::register');
-    $routes->post('/register', 'Auth::postRegister');
-    $routes->get('/forgot-password', 'Auth::forgotPassword');
-    $routes->post('/forgot-password', 'Auth::sendResetEmail');
-    $routes->get('/reset-password/(:any)', 'Auth::resetPassword/$1');
-    $routes->post('/reset-password', 'Auth::updatePassword');
-});
+    /**
+     * The Command's name
+     *
+     * @var string
+     */
+    protected $name = 'routes';
 
-$routes->group('', ['filter' => 'auth'], function ($routes) {
-    $routes->get('/logout', 'Auth::logout');
+    /**
+     * the Command's short description
+     *
+     * @var string
+     */
+    protected $description = 'Displays all routes.';
 
-    $routes->group('', ['filter' => 'admin'], function ($routes) {
-        $routes->get('/dashboard', 'Dashboard::index');
+    /**
+     * the Command's usage
+     *
+     * @var string
+     */
+    protected $usage = 'routes';
 
-        $routes->get('/kategori', 'Kategori::index');
-        $routes->get('/kategori/tambah', 'Kategori::new');
-        $routes->post('/kategori/simpan', 'Kategori::save');
-        $routes->get('/kategori/ubah/(:num)', 'Kategori::edit/$1');
-        $routes->post('/kategori/update/(:num)', 'Kategori::update/$1');
-        $routes->get('/kategori/hapus/(:num)', 'Kategori::delete/$1');
+    /**
+     * the Command's Arguments
+     *
+     * @var array<string, string>
+     */
+    protected $arguments = [];
 
-        $routes->get('/produk', 'Produk::index');
-        $routes->get('/produk/tambah', 'Produk::new');
-        $routes->post('/produk/simpan', 'Produk::save');
-        $routes->get('/produk/ubah/(:num)', 'Produk::edit/$1');
-        $routes->post('/produk/update/(:num)', 'Produk::update/$1');
-        $routes->get('/produk/hapus/(:num)', 'Produk::delete/$1');
+    /**
+     * the Command's Options
+     *
+     * @var array<string, string>
+     */
+    protected $options = [
+        '-h'     => 'Sort by Handler.',
+        '--host' => 'Specify hostname in request URI.',
+    ];
 
-        $routes->get('/kontak', 'Kontak::index');
-        $routes->get('/kontak/tambah', 'Kontak::new');
-        $routes->post('/kontak/simpan', 'Kontak::save');
-        $routes->get('/kontak/ubah/(:num)', 'Kontak::edit/$1');
-        $routes->post('/kontak/update/(:num)', 'Kontak::update/$1');
-        $routes->get('/kontak/hapus/(:num)', 'Kontak::delete/$1');
+    /**
+     * Displays the help for the spark cli script itself.
+     */
+    public function run(array $params)
+    {
+        $sortByHandler = array_key_exists('h', $params);
+        $host          = $params['host'] ?? null;
 
-        $routes->get('/pesanan', 'Pesanan::index');
-        $routes->get('/pesanan/sales-chart/(:segment)', 'Pesanan::getSalesPerMonth/$1');
-        $routes->get('/pesanan/ubah/status/(:segment)/(:num)', 'Pesanan::updateStatusPesanan/$1/$2');
-        $routes->get('/pesanan/ubah/status/pembatalan/(:segment)/(:num)', 'Pesanan::updateStatusPembatalan/$1/$2');
-        $routes->post('/pesanan/update-pengiriman/(:num)', 'Pesanan::updatePengiriman/$1');
+        // Set HTTP_HOST
+        if ($host !== null) {
+            $request              = service('request');
+            $_SERVER              = $request->getServer();
+            $_SERVER['HTTP_HOST'] = $host;
+            $request->setGlobal('server', $_SERVER);
+        }
 
-        $routes->get('/laporan', 'Laporan::index');
-    });
-});
+        $collection = service('routes')->loadRoutes();
+
+        // Reset HTTP_HOST
+        if ($host !== null) {
+            unset($_SERVER['HTTP_HOST']);
+        }
+
+        $methods = Router::HTTP_METHODS;
+
+        $tbody           = [];
+        $uriGenerator    = new SampleURIGenerator();
+        $filterCollector = new FilterCollector();
+
+        $definedRouteCollector = new DefinedRouteCollector($collection);
+
+        foreach ($definedRouteCollector->collect() as $route) {
+            $sampleUri = $uriGenerator->get($route['route']);
+            $filters   = $filterCollector->get($route['method'], $sampleUri);
+
+            $routeName = ($route['route'] === $route['name']) ? '»' : $route['name'];
+
+            $tbody[] = [
+                strtoupper($route['method']),
+                $route['route'],
+                $routeName,
+                $route['handler'],
+                implode(' ', array_map(class_basename(...), $filters['before'])),
+                implode(' ', array_map(class_basename(...), $filters['after'])),
+            ];
+        }
+
+        if ($collection->shouldAutoRoute()) {
+            $autoRoutesImproved = config(Feature::class)->autoRoutesImproved ?? false;
+
+            if ($autoRoutesImproved) {
+                $autoRouteCollector = new AutoRouteCollectorImproved(
+                    $collection->getDefaultNamespace(),
+                    $collection->getDefaultController(),
+                    $collection->getDefaultMethod(),
+                    $methods,
+                    $collection->getRegisteredControllers('*'),
+                );
+
+                $autoRoutes = $autoRouteCollector->get();
+
+                // Check for Module Routes.
+                $routingConfig = config(Routing::class);
+
+                if ($routingConfig instanceof Routing) {
+                    foreach ($routingConfig->moduleRoutes as $uri => $namespace) {
+                        $autoRouteCollector = new AutoRouteCollectorImproved(
+                            $namespace,
+                            $collection->getDefaultController(),
+                            $collection->getDefaultMethod(),
+                            $methods,
+                            $collection->getRegisteredControllers('*'),
+                            $uri,
+                        );
+
+                        $autoRoutes = [...$autoRoutes, ...$autoRouteCollector->get()];
+                    }
+                }
+            } else {
+                $autoRouteCollector = new AutoRouteCollector(
+                    $collection->getDefaultNamespace(),
+                    $collection->getDefaultController(),
+                    $collection->getDefaultMethod(),
+                );
+
+                $autoRoutes = $autoRouteCollector->get();
+
+                foreach ($autoRoutes as &$routes) {
+                    // There is no `AUTO` method, but it is intentional not to get route filters.
+                    $filters = $filterCollector->get('AUTO', $uriGenerator->get($routes[1]));
+
+                    $routes[] = implode(' ', array_map(class_basename(...), $filters['before']));
+                    $routes[] = implode(' ', array_map(class_basename(...), $filters['after']));
+                }
+            }
+
+            $tbody = [...$tbody, ...$autoRoutes];
+        }
+
+        $thead = [
+            'Method',
+            'Route',
+            'Name',
+            $sortByHandler ? 'Handler ↓' : 'Handler',
+            'Before Filters',
+            'After Filters',
+        ];
+
+        // Sort by Handler.
+        if ($sortByHandler) {
+            usort($tbody, static fn ($handler1, $handler2): int => strcmp($handler1[3], $handler2[3]));
+        }
+
+        if ($host !== null) {
+            CLI::write('Host: ' . $host);
+        }
+
+        CLI::table($tbody, $thead);
+
+        $this->showRequiredFilters();
+    }
+
+    private function showRequiredFilters(): void
+    {
+        $filterCollector = new FilterCollector();
+
+        $required = $filterCollector->getRequiredFilters();
+
+        $filters = [];
+
+        foreach ($required['before'] as $filter) {
+            $filters[] = CLI::color($filter, 'yellow');
+        }
+
+        CLI::write('Required Before Filters: ' . implode(', ', $filters));
+
+        $filters = [];
+
+        foreach ($required['after'] as $filter) {
+            $filters[] = CLI::color($filter, 'yellow');
+        }
+
+        CLI::write(' Required After Filters: ' . implode(', ', $filters));
+    }
+}
