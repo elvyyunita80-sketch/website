@@ -11,104 +11,68 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\Cache\Handlers;
+namespace CodeIgniter\Encryption\Handlers;
 
-use Closure;
-use CodeIgniter\Cache\CacheInterface;
-use CodeIgniter\Exceptions\BadMethodCallException;
-use CodeIgniter\Exceptions\InvalidArgumentException;
-use Config\Cache;
-use Exception;
+use CodeIgniter\Encryption\EncrypterInterface;
+use Config\Encryption;
 
 /**
- * Base class for cache handling
- *
- * @see \CodeIgniter\Cache\Handlers\BaseHandlerTest
+ * Base class for encryption handling
  */
-abstract class BaseHandler implements CacheInterface
+abstract class BaseHandler implements EncrypterInterface
 {
     /**
-     * Reserved characters that cannot be used in a key or tag. May be overridden by the config.
-     * From https://github.com/symfony/cache-contracts/blob/c0446463729b89dd4fa62e9aeecc80287323615d/ItemInterface.php#L43
-     *
-     * @deprecated in favor of the Cache config
+     * Constructor
      */
-    public const RESERVED_CHARACTERS = '{}()/\@:';
-
-    /**
-     * Maximum key length.
-     */
-    public const MAX_KEY_LENGTH = PHP_INT_MAX;
-
-    /**
-     * Prefix to apply to cache keys.
-     * May not be used by all handlers.
-     *
-     * @var string
-     */
-    protected $prefix;
-
-    /**
-     * Validates a cache key according to PSR-6.
-     * Keys that exceed MAX_KEY_LENGTH are hashed.
-     * From https://github.com/symfony/cache/blob/7b024c6726af21fd4984ac8d1eae2b9f3d90de88/CacheItem.php#L158
-     *
-     * @param string $key    The key to validate
-     * @param string $prefix Optional prefix to include in length calculations
-     *
-     * @throws InvalidArgumentException When $key is not valid
-     */
-    public static function validateKey($key, $prefix = ''): string
+    public function __construct(?Encryption $config = null)
     {
-        if (! is_string($key)) {
-            throw new InvalidArgumentException('Cache key must be a string');
-        }
-        if ($key === '') {
-            throw new InvalidArgumentException('Cache key cannot be empty.');
-        }
+        $config ??= config(Encryption::class);
 
-        $reserved = config(Cache::class)->reservedCharacters ?? self::RESERVED_CHARACTERS;
-        if ($reserved !== '' && strpbrk($key, $reserved) !== false) {
-            throw new InvalidArgumentException('Cache key contains reserved characters ' . $reserved);
+        // make the parameters conveniently accessible
+        foreach (get_object_vars($config) as $key => $value) {
+            if (property_exists($this, $key)) {
+                $this->{$key} = $value;
+            }
         }
-
-        // If the key with prefix exceeds the length then return the hashed version
-        return strlen($prefix . $key) > static::MAX_KEY_LENGTH ? $prefix . md5($key) : $prefix . $key;
     }
 
     /**
-     * Get an item from the cache, or execute the given Closure and store the result.
+     * Byte-safe substr()
      *
-     * @param string           $key      Cache item name
-     * @param int              $ttl      Time to live
-     * @param Closure(): mixed $callback Callback return value
+     * @param string $str
+     * @param int    $start
+     * @param int    $length
      *
-     * @return array|bool|float|int|object|string|null
+     * @return string
      */
-    public function remember(string $key, int $ttl, Closure $callback)
+    protected static function substr($str, $start, $length = null)
     {
-        $value = $this->get($key);
-
-        if ($value !== null) {
-            return $value;
-        }
-
-        $this->save($key, $value = $callback(), $ttl);
-
-        return $value;
+        return mb_substr($str, $start, $length, '8bit');
     }
 
     /**
-     * Deletes items from the cache store matching a given pattern.
+     * __get() magic, providing readonly access to some of our properties
      *
-     * @param string $pattern Cache items glob-style pattern
+     * @param string $key Property name
      *
-     * @return int|never
-     *
-     * @throws Exception
+     * @return array|bool|int|string|null
      */
-    public function deleteMatching(string $pattern)
+    public function __get($key)
     {
-        throw new BadMethodCallException('The deleteMatching method is not implemented.');
+        if ($this->__isset($key)) {
+            return $this->{$key};
+        }
+
+        return null;
+    }
+
+    /**
+     * __isset() magic, providing checking for some of our properties
+     *
+     * @param string $key Property name
+     */
+    public function __isset($key): bool
+    {
+        return property_exists($this, $key);
     }
 }

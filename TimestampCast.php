@@ -11,39 +11,26 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
-use CodeIgniter\I18n\Time;
+use CodeIgniter\Entity\Exceptions\CastException;
 
 /**
  * Class TimestampCast
- *
- * (PHP) [Time --> int       ] --> (DB driver) --> (DB column) int
- *       [     <-- int|string] <-- (DB driver) <-- (DB column) int
  */
 class TimestampCast extends BaseCast
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): Time {
-        if (! is_int($value) && ! is_string($value)) {
-            self::invalidTypeValueError($value);
+    /**
+     * {@inheritDoc}
+     */
+    public static function get($value, array $params = [])
+    {
+        $value = strtotime($value);
+
+        if ($value === false) {
+            throw CastException::forInvalidTimestamp();
         }
 
-        return Time::createFromTimestamp((int) $value, date_default_timezone_get());
-    }
-
-    public static function set(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): int {
-        if (! $value instanceof Time) {
-            self::invalidTypeValueError($value);
-        }
-
-        return $value->getTimestamp();
+        return $value;
     }
 }

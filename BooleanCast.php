@@ -11,29 +11,18 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
 /**
  * Class BooleanCast
- *
- * (PHP) [bool --> bool      ] --> (DB driver) --> (DB column) bool|int(0/1)
- *       [     <-- string|int] <-- (DB driver) <-- (DB column) bool|int(0/1)
  */
 class BooleanCast extends BaseCast
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): bool {
-        // For PostgreSQL
-        if ($value === 't') {
-            return true;
-        }
-        if ($value === 'f') {
-            return false;
-        }
-
-        return filter_var($value, FILTER_VALIDATE_BOOLEAN);
+    /**
+     * {@inheritDoc}
+     */
+    public static function get($value, array $params = []): bool
+    {
+        return (bool) $value;
     }
 }

@@ -11,35 +11,36 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
-use CodeIgniter\Exceptions\InvalidArgumentException;
-
+/**
+ * Class BaseCast
+ */
 abstract class BaseCast implements CastInterface
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): mixed {
-        return $value;
-    }
-
-    public static function set(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): mixed {
-        return $value;
-    }
-
-    protected static function invalidTypeValueError(mixed $value): never
+    /**
+     * Get
+     *
+     * @param array|bool|float|int|object|string|null $value  Data
+     * @param array                                   $params Additional param
+     *
+     * @return array|bool|float|int|object|string|null
+     */
+    public static function get($value, array $params = [])
     {
-        $message = '[' . static::class . '] Invalid value type: ' . get_debug_type($value);
-        if (is_scalar($value)) {
-            $message .= ', and its value: ' . var_export($value, true);
-        }
+        return $value;
+    }
 
-        throw new InvalidArgumentException($message);
+    /**
+     * Set
+     *
+     * @param array|bool|float|int|object|string|null $value  Data
+     * @param array                                   $params Additional param
+     *
+     * @return array|bool|float|int|object|string|null
+     */
+    public static function set($value, array $params = [])
+    {
+        return $value;
     }
 }

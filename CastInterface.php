@@ -11,37 +11,34 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
+/**
+ * Interface CastInterface
+ *
+ * The methods work at (1)(4) only.
+ *   [App Code] --- (1) --> [Entity] --- (2) --> [Database]
+ *   [App Code] <-- (4) --- [Entity] <-- (3) --- [Database]
+ */
 interface CastInterface
 {
     /**
-     * Takes a value from DataSource, returns its value for PHP.
+     * Takes a raw value from Entity, returns its value for PHP.
      *
-     * @param mixed        $value  Data from database driver
-     * @param list<string> $params Additional param
-     * @param object|null  $helper Helper object. E.g., database connection
+     * @param array|bool|float|int|object|string|null $value  Data
+     * @param array                                   $params Additional param
      *
-     * @return mixed PHP native value
+     * @return array|bool|float|int|object|string|null
      */
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): mixed;
+    public static function get($value, array $params = []);
 
     /**
-     * Takes a PHP value, returns its value for DataSource.
+     * Takes a PHP value, returns its raw value for Entity.
      *
-     * @param mixed        $value  PHP native value
-     * @param list<string> $params Additional param
-     * @param object|null  $helper Helper object. E.g., database connection
+     * @param array|bool|float|int|object|string|null $value  Data
+     * @param array                                   $params Additional param
      *
-     * @return mixed Data to pass to database driver
+     * @return array|bool|float|int|object|string|null
      */
-    public static function set(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): mixed;
+    public static function set($value, array $params = []);
 }

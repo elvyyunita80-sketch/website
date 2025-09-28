@@ -14,11 +14,12 @@ declare(strict_types=1);
 namespace CodeIgniter\Exceptions;
 
 /**
- * Provides a domain-level interface for broad capture
- * of all framework-related exceptions.
- *
- * catch (\CodeIgniter\Exceptions\ExceptionInterface) { ... }
+ * Interface for Exceptions that has exception code as exit code.
  */
-interface ExceptionInterface
+interface HasExitCodeInterface extends ExceptionInterface
 {
+    /**
+     * Returns exit status code.
+     */
+    public function getExitCode(): int;
 }

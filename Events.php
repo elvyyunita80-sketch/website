@@ -11,115 +11,275 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\Debug\Toolbar\Collectors;
+namespace CodeIgniter\Events;
+
+use Config\Modules;
 
 /**
- * Events collector
+ * Events
+ *
+ * @see \CodeIgniter\Events\EventsTest
  */
-class Events extends BaseCollector
+class Events
 {
+    public const PRIORITY_LOW    = 200;
+    public const PRIORITY_NORMAL = 100;
+    public const PRIORITY_HIGH   = 10;
+
     /**
-     * Whether this collector has data that can
-     * be displayed in the Timeline.
+     * The list of listeners.
+     *
+     * @var array
+     */
+    protected static $listeners = [];
+
+    /**
+     * Flag to let us know if we've read from the Config file(s)
+     * and have all of the defined events.
      *
      * @var bool
      */
-    protected $hasTimeline = true;
+    protected static $initialized = false;
 
     /**
-     * Whether this collector needs to display
-     * content in a tab or not.
+     * If true, events will not actually be fired.
+     * Useful during testing.
      *
      * @var bool
      */
-    protected $hasTabContent = true;
+    protected static $simulate = false;
 
     /**
-     * Whether this collector has data that
-     * should be shown in the Vars tab.
+     * Stores information about the events
+     * for display in the debug toolbar.
      *
-     * @var bool
+     * @var list<array<string, float|string>>
      */
-    protected $hasVarData = false;
+    protected static $performanceLog = [];
 
     /**
-     * The 'title' of this Collector.
-     * Used to name things in the toolbar HTML.
+     * A list of found files.
      *
-     * @var string
+     * @var list<string>
      */
-    protected $title = 'Events';
+    protected static $files = [];
 
     /**
-     * Child classes should implement this to return the timeline data
-     * formatted for correct usage.
+     * Ensures that we have a events file ready.
+     *
+     * @return void
      */
-    protected function formatTimelineData(): array
+    public static function initialize()
     {
-        $data = [];
-
-        $rows = \CodeIgniter\Events\Events::getPerformanceLogs();
-
-        foreach ($rows as $info) {
-            $data[] = [
-                'name'      => 'Event: ' . $info['event'],
-                'component' => 'Events',
-                'start'     => $info['start'],
-                'duration'  => $info['end'] - $info['start'],
-            ];
+        // Don't overwrite anything....
+        if (static::$initialized) {
+            return;
         }
 
-        return $data;
-    }
+        $config = new Modules();
+        $events = APPPATH . 'Config' . DIRECTORY_SEPARATOR . 'Events.php';
+        $files  = [];
 
-    /**
-     * Returns the data of this collector to be formatted in the toolbar
-     */
-    public function display(): array
-    {
-        $data = [
-            'events' => [],
-        ];
+        if ($config->shouldDiscover('events')) {
+            $files = service('locator')->search('Config/Events.php');
+        }
 
-        foreach (\CodeIgniter\Events\Events::getPerformanceLogs() as $row) {
-            $key = $row['event'];
-
-            if (! array_key_exists($key, $data['events'])) {
-                $data['events'][$key] = [
-                    'event'    => $key,
-                    'duration' => ($row['end'] - $row['start']) * 1000,
-                    'count'    => 1,
-                ];
-
-                continue;
+        $files = array_filter(array_map(static function (string $file): false|string {
+            if (is_file($file)) {
+                return realpath($file) ?: $file;
             }
 
-            $data['events'][$key]['duration'] += ($row['end'] - $row['start']) * 1000;
-            $data['events'][$key]['count']++;
+            return false; // @codeCoverageIgnore
+        }, $files));
+
+        static::$files = array_unique(array_merge($files, [$events]));
+
+        foreach (static::$files as $file) {
+            include $file;
         }
 
-        foreach ($data['events'] as &$row) {
-            $row['duration'] = number_format($row['duration'], 2);
-        }
-
-        return $data;
+        static::$initialized = true;
     }
 
     /**
-     * Gets the "badge" value for the button.
-     */
-    public function getBadgeValue(): int
-    {
-        return count(\CodeIgniter\Events\Events::getPerformanceLogs());
-    }
-
-    /**
-     * Display the icon.
+     * Registers an action to happen on an event. The action can be any sort
+     * of callable:
      *
-     * Icon from https://icons8.com - 1em package
+     *  Events::on('create', 'myFunction');               // procedural function
+     *  Events::on('create', ['myClass', 'myMethod']);    // Class::method
+     *  Events::on('create', [$myInstance, 'myMethod']);  // Method on an existing instance
+     *  Events::on('create', function() {});              // Closure
+     *
+     * @param string   $eventName
+     * @param callable $callback
+     * @param int      $priority
+     *
+     * @return void
      */
-    public function icon(): string
+    public static function on($eventName, $callback, $priority = self::PRIORITY_NORMAL)
     {
-        return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABgAAAAYCAYAAADgdz34AAAAAXNSR0IArs4c6QAAAARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAEASURBVEhL7ZXNDcIwDIVTsRBH1uDQDdquUA6IM1xgCA6MwJUN2hk6AQzAz0vl0ETUxC5VT3zSU5w81/mRMGZysixbFEVR0jSKNt8geQU9aRpFmp/keX6AbjZ5oB74vsaN5lSzA4tLSjpBFxsjeSuRy4d2mDdQTWU7YLbXTNN05mKyovj5KL6B7q3hoy3KwdZxBlT+Ipz+jPHrBqOIynZgcZonoukb/0ckiTHqNvDXtXEAaygRbaB9FvUTjRUHsIYS0QaSp+Dw6wT4hiTmYHOcYZsdLQ2CbXa4ftuuYR4x9vYZgdb4vsFYUdmABMYeukK9/SUme3KMFQ77+Yfzh8eYF8+orDuDWU5LAAAAAElFTkSuQmCC';
+        if (! isset(static::$listeners[$eventName])) {
+            static::$listeners[$eventName] = [
+                true, // If there's only 1 item, it's sorted.
+                [$priority],
+                [$callback],
+            ];
+        } else {
+            static::$listeners[$eventName][0]   = false; // Not sorted
+            static::$listeners[$eventName][1][] = $priority;
+            static::$listeners[$eventName][2][] = $callback;
+        }
+    }
+
+    /**
+     * Runs through all subscribed methods running them one at a time,
+     * until either:
+     *  a) All subscribers have finished or
+     *  b) a method returns false, at which point execution of subscribers stops.
+     *
+     * @param string $eventName
+     * @param mixed  $arguments
+     */
+    public static function trigger($eventName, ...$arguments): bool
+    {
+        // Read in our Config/Events file so that we have them all!
+        if (! static::$initialized) {
+            static::initialize();
+        }
+
+        $listeners = static::listeners($eventName);
+
+        foreach ($listeners as $listener) {
+            $start = microtime(true);
+
+            $result = static::$simulate === false ? $listener(...$arguments) : true;
+
+            if (CI_DEBUG) {
+                static::$performanceLog[] = [
+                    'start' => $start,
+                    'end'   => microtime(true),
+                    'event' => $eventName,
+                ];
+            }
+
+            if ($result === false) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Returns an array of listeners for a single event. They are
+     * sorted by priority.
+     *
+     * @param string $eventName
+     */
+    public static function listeners($eventName): array
+    {
+        if (! isset(static::$listeners[$eventName])) {
+            return [];
+        }
+
+        // The list is not sorted
+        if (! static::$listeners[$eventName][0]) {
+            // Sort it!
+            array_multisort(static::$listeners[$eventName][1], SORT_NUMERIC, static::$listeners[$eventName][2]);
+
+            // Mark it as sorted already!
+            static::$listeners[$eventName][0] = true;
+        }
+
+        return static::$listeners[$eventName][2];
+    }
+
+    /**
+     * Removes a single listener from an event.
+     *
+     * If the listener couldn't be found, returns FALSE, else TRUE if
+     * it was removed.
+     *
+     * @param string $eventName
+     */
+    public static function removeListener($eventName, callable $listener): bool
+    {
+        if (! isset(static::$listeners[$eventName])) {
+            return false;
+        }
+
+        foreach (static::$listeners[$eventName][2] as $index => $check) {
+            if ($check === $listener) {
+                unset(
+                    static::$listeners[$eventName][1][$index],
+                    static::$listeners[$eventName][2][$index],
+                );
+
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Removes all listeners.
+     *
+     * If the event_name is specified, only listeners for that event will be
+     * removed, otherwise all listeners for all events are removed.
+     *
+     * @param string|null $eventName
+     *
+     * @return void
+     */
+    public static function removeAllListeners($eventName = null)
+    {
+        if ($eventName !== null) {
+            unset(static::$listeners[$eventName]);
+        } else {
+            static::$listeners = [];
+        }
+    }
+
+    /**
+     * Sets the path to the file that routes are read from.
+     *
+     * @return void
+     */
+    public static function setFiles(array $files)
+    {
+        static::$files = $files;
+    }
+
+    /**
+     * Returns the files that were found/loaded during this request.
+     *
+     * @return list<string>
+     */
+    public static function getFiles()
+    {
+        return static::$files;
+    }
+
+    /**
+     * Turns simulation on or off. When on, events will not be triggered,
+     * simply logged. Useful during testing when you don't actually want
+     * the tests to run.
+     *
+     * @return void
+     */
+    public static function simulate(bool $choice = true)
+    {
+        static::$simulate = $choice;
+    }
+
+    /**
+     * Getter for the performance log records.
+     *
+     * @return list<array<string, float|string>>
+     */
+    public static function getPerformanceLogs()
+    {
+        return static::$performanceLog;
     }
 }

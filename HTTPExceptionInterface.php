@@ -14,11 +14,8 @@ declare(strict_types=1);
 namespace CodeIgniter\Exceptions;
 
 /**
- * Provides a domain-level interface for broad capture
- * of all framework-related exceptions.
- *
- * catch (\CodeIgniter\Exceptions\ExceptionInterface) { ... }
+ * Interface for Exceptions that has exception code as HTTP status code.
  */
-interface ExceptionInterface
+interface HTTPExceptionInterface extends ExceptionInterface
 {
 }

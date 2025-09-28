@@ -11,37 +11,28 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
 /**
  * Int Bool Cast
  *
- * (PHP) [bool --> int       ] --> (DB driver) --> (DB column) int(0/1)
- *       [     <-- int|string] <-- (DB driver) <-- (DB column) int(0/1)
+ * DB column: int (0/1) <--> Class property: bool
  */
 final class IntBoolCast extends BaseCast
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): bool {
-        if (! is_int($value) && ! is_string($value)) {
-            self::invalidTypeValueError($value);
-        }
-
+    /**
+     * @param int $value
+     */
+    public static function get($value, array $params = []): bool
+    {
         return (bool) $value;
     }
 
-    public static function set(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): int {
-        if (! is_bool($value)) {
-            self::invalidTypeValueError($value);
-        }
-
+    /**
+     * @param bool|int|string $value
+     */
+    public static function set($value, array $params = []): int
+    {
         return (int) $value;
     }
 }

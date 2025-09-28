@@ -11,39 +11,20 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
 use CodeIgniter\HTTP\URI;
 
 /**
  * Class URICast
- *
- * (PHP) [URI --> string] --> (DB driver) --> (DB column) string
- *       [    <-- string] <-- (DB driver) <-- (DB column) string
  */
 class URICast extends BaseCast
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): URI {
-        if (! is_string($value)) {
-            self::invalidTypeValueError($value);
-        }
-
-        return new URI($value);
-    }
-
-    public static function set(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): string {
-        if (! $value instanceof URI) {
-            self::invalidTypeValueError($value);
-        }
-
-        return (string) $value;
+    /**
+     * {@inheritDoc}
+     */
+    public static function get($value, array $params = []): URI
+    {
+        return $value instanceof URI ? $value : new URI($value);
     }
 }

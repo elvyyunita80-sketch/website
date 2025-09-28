@@ -11,37 +11,30 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
 /**
  * Class ArrayCast
- *
- * (PHP) [array --> string] --> (DB driver) --> (DB column) string
- *       [      <-- string] <-- (DB driver) <-- (DB column) string
  */
-class ArrayCast extends BaseCast implements CastInterface
+class ArrayCast extends BaseCast
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): array {
-        if (! is_string($value)) {
-            self::invalidTypeValueError($value);
-        }
-
-        if ((str_starts_with($value, 'a:') || str_starts_with($value, 's:'))) {
-            $value = unserialize($value, ['allowed_classes' => false]);
+    /**
+     * {@inheritDoc}
+     */
+    public static function get($value, array $params = []): array
+    {
+        if (is_string($value) && (str_starts_with($value, 'a:') || str_starts_with($value, 's:'))) {
+            $value = unserialize($value);
         }
 
         return (array) $value;
     }
 
-    public static function set(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): string {
+    /**
+     * {@inheritDoc}
+     */
+    public static function set($value, array $params = []): string
+    {
         return serialize($value);
     }
 }

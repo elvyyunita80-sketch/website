@@ -11,37 +11,26 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
 /**
  * Class CSVCast
- *
- * (PHP) [array --> string] --> (DB driver) --> (DB column) string
- *       [      <-- string] <-- (DB driver) <-- (DB column) string
  */
 class CSVCast extends BaseCast
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): array {
-        if (! is_string($value)) {
-            self::invalidTypeValueError($value);
-        }
-
+    /**
+     * {@inheritDoc}
+     */
+    public static function get($value, array $params = []): array
+    {
         return explode(',', $value);
     }
 
-    public static function set(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): string {
-        if (! is_array($value)) {
-            self::invalidTypeValueError($value);
-        }
-
+    /**
+     * {@inheritDoc}
+     */
+    public static function set($value, array $params = []): string
+    {
         return implode(',', $value);
     }
 }

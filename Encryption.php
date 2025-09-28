@@ -1,92 +1,181 @@
 <?php
 
-namespace Config;
-
-use CodeIgniter\Config\BaseConfig;
+declare(strict_types=1);
 
 /**
- * Encryption configuration.
+ * This file is part of CodeIgniter 4 framework.
  *
- * These are the settings used for encryption, if you don't pass a parameter
- * array to the encrypter for creation/initialization.
+ * (c) CodeIgniter Foundation <admin@codeigniter.com>
+ *
+ * For the full copyright and license information, please view
+ * the LICENSE file that was distributed with this source code.
  */
-class Encryption extends BaseConfig
+
+namespace CodeIgniter\Encryption;
+
+use CodeIgniter\Encryption\Exceptions\EncryptionException;
+use Config\Encryption as EncryptionConfig;
+
+/**
+ * CodeIgniter Encryption Manager
+ *
+ * Provides two-way keyed encryption via PHP's Sodium and/or OpenSSL extensions.
+ * This class determines the driver, cipher, and mode to use, and then
+ * initializes the appropriate encryption handler.
+ *
+ * @property-read string       $digest
+ * @property-read string       $driver
+ * @property-read list<string> $drivers
+ * @property-read string       $key
+ *
+ * @see \CodeIgniter\Encryption\EncryptionTest
+ */
+class Encryption
 {
     /**
-     * --------------------------------------------------------------------------
-     * Encryption Key Starter
-     * --------------------------------------------------------------------------
+     * The encrypter we create
      *
-     * If you use the Encryption class you must set an encryption key (seed).
-     * You need to ensure it is long enough for the cipher and mode you plan to use.
-     * See the user guide for more info.
+     * @var EncrypterInterface
      */
-    public string $key = '';
+    protected $encrypter;
 
     /**
-     * --------------------------------------------------------------------------
-     * Encryption Driver to Use
-     * --------------------------------------------------------------------------
+     * The driver being used
      *
-     * One of the supported encryption drivers.
-     *
-     * Available drivers:
-     * - OpenSSL
-     * - Sodium
+     * @var string
      */
-    public string $driver = 'OpenSSL';
+    protected $driver;
 
     /**
-     * --------------------------------------------------------------------------
-     * SodiumHandler's Padding Length in Bytes
-     * --------------------------------------------------------------------------
+     * The key/seed being used
      *
-     * This is the number of bytes that will be padded to the plaintext message
-     * before it is encrypted. This value should be greater than zero.
-     *
-     * See the user guide for more information on padding.
+     * @var string
      */
-    public int $blockSize = 16;
+    protected $key;
 
     /**
-     * --------------------------------------------------------------------------
-     * Encryption digest
-     * --------------------------------------------------------------------------
+     * The derived HMAC key
      *
-     * HMAC digest to use, e.g. 'SHA512' or 'SHA256'. Default value is 'SHA512'.
+     * @var string
      */
-    public string $digest = 'SHA512';
+    protected $hmacKey;
 
     /**
-     * Whether the cipher-text should be raw. If set to false, then it will be base64 encoded.
-     * This setting is only used by OpenSSLHandler.
+     * HMAC digest to use
      *
-     * Set to false for CI3 Encryption compatibility.
+     * @var string
      */
-    public bool $rawData = true;
+    protected $digest = 'SHA512';
 
     /**
-     * Encryption key info.
-     * This setting is only used by OpenSSLHandler.
+     * Map of drivers to handler classes, in preference order
      *
-     * Set to 'encryption' for CI3 Encryption compatibility.
+     * @var array
      */
-    public string $encryptKeyInfo = '';
+    protected $drivers = [
+        'OpenSSL',
+        'Sodium',
+    ];
 
     /**
-     * Authentication key info.
-     * This setting is only used by OpenSSLHandler.
+     * Handlers that are to be installed
      *
-     * Set to 'authentication' for CI3 Encryption compatibility.
+     * @var array<string, bool>
      */
-    public string $authKeyInfo = '';
+    protected $handlers = [];
 
     /**
-     * Cipher to use.
-     * This setting is only used by OpenSSLHandler.
-     *
-     * Set to 'AES-128-CBC' to decrypt encrypted data that encrypted
-     * by CI3 Encryption default configuration.
+     * @throws EncryptionException
      */
-    public string $cipher = 'AES-256-CTR';
+    public function __construct(?EncryptionConfig $config = null)
+    {
+        $config ??= new EncryptionConfig();
+
+        $this->key    = $config->key;
+        $this->driver = $config->driver;
+        $this->digest = $config->digest ?? 'SHA512';
+
+        $this->handlers = [
+            'OpenSSL' => extension_loaded('openssl'),
+            // the SodiumHandler uses some API (like sodium_pad) that is available only on v1.0.14+
+            'Sodium' => extension_loaded('sodium') && version_compare(SODIUM_LIBRARY_VERSION, '1.0.14', '>='),
+        ];
+
+        if (! in_array($this->driver, $this->drivers, true) || (array_key_exists($this->driver, $this->handlers) && ! $this->handlers[$this->driver])) {
+            throw EncryptionException::forNoHandlerAvailable($this->driver);
+        }
+    }
+
+    /**
+     * Initialize or re-initialize an encrypter
+     *
+     * @return EncrypterInterface
+     *
+     * @throws EncryptionException
+     */
+    public function initialize(?EncryptionConfig $config = null)
+    {
+        if ($config instanceof EncryptionConfig) {
+            $this->key    = $config->key;
+            $this->driver = $config->driver;
+            $this->digest = $config->digest ?? 'SHA512';
+        }
+
+        if (empty($this->driver)) {
+            throw EncryptionException::forNoDriverRequested();
+        }
+
+        if (! in_array($this->driver, $this->drivers, true)) {
+            throw EncryptionException::forUnKnownHandler($this->driver);
+        }
+
+        if (empty($this->key)) {
+            throw EncryptionException::forNeedsStarterKey();
+        }
+
+        $this->hmacKey = bin2hex(\hash_hkdf($this->digest, $this->key));
+
+        $handlerName     = 'CodeIgniter\\Encryption\\Handlers\\' . $this->driver . 'Handler';
+        $this->encrypter = new $handlerName($config);
+
+        return $this->encrypter;
+    }
+
+    /**
+     * Create a random key
+     *
+     * @param int $length Output length
+     *
+     * @return string
+     */
+    public static function createKey($length = 32)
+    {
+        return random_bytes($length);
+    }
+
+    /**
+     * __get() magic, providing readonly access to some of our protected properties
+     *
+     * @param string $key Property name
+     *
+     * @return array|string|null
+     */
+    public function __get($key)
+    {
+        if ($this->__isset($key)) {
+            return $this->{$key};
+        }
+
+        return null;
+    }
+
+    /**
+     * __isset() magic, providing checking for some of our protected properties
+     *
+     * @param string $key Property name
+     */
+    public function __isset($key): bool
+    {
+        return in_array($key, ['key', 'digest', 'driver', 'drivers'], true);
+    }
 }

@@ -11,25 +11,18 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
 /**
  * Class FloatCast
- *
- * (PHP) [float --> float       ] --> (DB driver) --> (DB column) float
- *       [      <-- float|string] <-- (DB driver) <-- (DB column) float
  */
 class FloatCast extends BaseCast
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): float {
-        if (! is_float($value) && ! is_string($value)) {
-            self::invalidTypeValueError($value);
-        }
-
+    /**
+     * {@inheritDoc}
+     */
+    public static function get($value, array $params = []): float
+    {
         return (float) $value;
     }
 }

@@ -14,11 +14,17 @@ declare(strict_types=1);
 namespace CodeIgniter\Exceptions;
 
 /**
- * Provides a domain-level interface for broad capture
- * of all framework-related exceptions.
- *
- * catch (\CodeIgniter\Exceptions\ExceptionInterface) { ... }
+ * Exception thrown when there is an error with the test code.
  */
-interface ExceptionInterface
+class TestException extends LogicException
 {
+    use DebugTraceableTrait;
+
+    /**
+     * @return static
+     */
+    public static function forInvalidMockClass(string $name)
+    {
+        return new static(lang('Test.invalidMockClass', [$name]));
+    }
 }

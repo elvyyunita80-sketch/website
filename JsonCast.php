@@ -11,53 +11,57 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\DataCaster\Cast;
+namespace CodeIgniter\Entity\Cast;
 
-use CodeIgniter\DataCaster\Exceptions\CastException;
+use CodeIgniter\Entity\Exceptions\CastException;
 use JsonException;
 use stdClass;
 
 /**
  * Class JsonCast
- *
- * (PHP) [array|stdClass --> string] --> (DB driver) --> (DB column) string
- *       [               <-- string] <-- (DB driver) <-- (DB column) string
  */
 class JsonCast extends BaseCast
 {
-    public static function get(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): array|stdClass {
-        if (! is_string($value)) {
-            self::invalidTypeValueError($value);
-        }
-
+    /**
+     * {@inheritDoc}
+     */
+    public static function get($value, array $params = [])
+    {
         $associative = in_array('array', $params, true);
 
-        $output = ($associative ? [] : new stdClass());
+        $tmp = $value !== null ? ($associative ? [] : new stdClass()) : null;
 
-        try {
-            $output = json_decode($value, $associative, 512, JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            throw CastException::forInvalidJsonFormat($e->getCode());
+        if (function_exists('json_decode')
+            && (
+                (is_string($value)
+                    && strlen($value) > 1
+                    && in_array($value[0], ['[', '{', '"'], true))
+                || is_numeric($value)
+            )
+        ) {
+            try {
+                $tmp = json_decode($value, $associative, 512, JSON_THROW_ON_ERROR);
+            } catch (JsonException $e) {
+                throw CastException::forInvalidJsonFormat($e->getCode());
+            }
         }
 
-        return $output;
+        return $tmp;
     }
 
-    public static function set(
-        mixed $value,
-        array $params = [],
-        ?object $helper = null,
-    ): string {
-        try {
-            $output = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
-        } catch (JsonException $e) {
-            throw CastException::forInvalidJsonFormat($e->getCode());
+    /**
+     * {@inheritDoc}
+     */
+    public static function set($value, array $params = []): string
+    {
+        if (function_exists('json_encode')) {
+            try {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR);
+            } catch (JsonException $e) {
+                throw CastException::forInvalidJsonFormat($e->getCode());
+            }
         }
 
-        return $output;
+        return $value;
     }
 }
