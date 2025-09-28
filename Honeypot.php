@@ -11,50 +11,111 @@ declare(strict_types=1);
  * the LICENSE file that was distributed with this source code.
  */
 
-namespace CodeIgniter\Filters;
+namespace CodeIgniter\Honeypot;
 
 use CodeIgniter\Honeypot\Exceptions\HoneypotException;
 use CodeIgniter\HTTP\IncomingRequest;
 use CodeIgniter\HTTP\RequestInterface;
 use CodeIgniter\HTTP\ResponseInterface;
+use Config\Honeypot as HoneypotConfig;
 
 /**
- * Honeypot filter
+ * class Honeypot
  *
- * @see \CodeIgniter\Filters\HoneypotTest
+ * @see \CodeIgniter\Honeypot\HoneypotTest
  */
-class Honeypot implements FilterInterface
+class Honeypot
 {
     /**
-     * Checks if Honeypot field is empty, if not then the
-     * requester is a bot
+     * Our configuration.
      *
-     * @param list<string>|null $arguments
+     * @var HoneypotConfig
+     */
+    protected $config;
+
+    /**
+     * Constructor.
      *
      * @throws HoneypotException
      */
-    public function before(RequestInterface $request, $arguments = null)
+    public function __construct(HoneypotConfig $config)
     {
-        if (! $request instanceof IncomingRequest) {
-            return null;
+        $this->config = $config;
+
+        if ($this->config->container === '' || ! str_contains($this->config->container, '{template}')) {
+            $this->config->container = '<div style="display:none">{template}</div>';
         }
 
-        if (service('honeypot')->hasContent($request)) {
-            throw HoneypotException::isBot();
+        $this->config->containerId ??= 'hpc';
+
+        if ($this->config->template === '') {
+            throw HoneypotException::forNoTemplate();
         }
 
-        return null;
+        if ($this->config->name === '') {
+            throw HoneypotException::forNoNameField();
+        }
     }
 
     /**
-     * Attach a honeypot to the current response.
+     * Checks the request if honeypot field has data.
      *
-     * @param list<string>|null $arguments
+     * @return bool
      */
-    public function after(RequestInterface $request, ResponseInterface $response, $arguments = null)
+    public function hasContent(RequestInterface $request)
     {
-        service('honeypot')->attachHoneypot($response);
+        assert($request instanceof IncomingRequest);
 
-        return null;
+        return ! empty($request->getPost($this->config->name));
+    }
+
+    /**
+     * Attaches Honeypot template to response.
+     *
+     * @return void
+     */
+    public function attachHoneypot(ResponseInterface $response)
+    {
+        if ($response->getBody() === null) {
+            return;
+        }
+
+        if ($response->getCSP()->enabled()) {
+            // Add id attribute to the container tag.
+            $this->config->container = str_ireplace(
+                '>{template}',
+                ' id="' . $this->config->containerId . '">{template}',
+                $this->config->container,
+            );
+        }
+
+        $prepField = $this->prepareTemplate($this->config->template);
+
+        $bodyBefore = $response->getBody();
+        $bodyAfter  = str_ireplace('</form>', $prepField . '</form>', $bodyBefore);
+
+        if ($response->getCSP()->enabled() && ($bodyBefore !== $bodyAfter)) {
+            // Add style tag for the container tag in the head tag.
+            $style     = '<style ' . csp_style_nonce() . '>#' . $this->config->containerId . ' { display:none }</style>';
+            $bodyAfter = str_ireplace('</head>', $style . '</head>', $bodyAfter);
+        }
+
+        $response->setBody($bodyAfter);
+    }
+
+    /**
+     * Prepares the template by adding label
+     * content and field name.
+     */
+    protected function prepareTemplate(string $template): string
+    {
+        $template = str_ireplace('{label}', $this->config->label, $template);
+        $template = str_ireplace('{name}', $this->config->name, $template);
+
+        if ($this->config->hidden) {
+            $template = str_ireplace('{template}', $template, $this->config->container);
+        }
+
+        return $template;
     }
 }
